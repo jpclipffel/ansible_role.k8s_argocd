@@ -1,0 +1,3 @@
+galaxy_info:
+  role_name: k8s_argocd
+  description: Deploy Argo CD on Kubernetes clusters.

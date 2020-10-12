@@ -1,0 +1,140 @@
+# code: language=Ansible insertSpaces=true tabSize=2
+
+
+- name: Assertions
+  assert:
+    that:
+      - k8s_primary_master_name is defined
+      - k8s_node_type is defined
+  tags: [never, apply, delete]
+
+
+- name: Create temporary ArgoCD manifest
+  tempfile:
+    state: file
+  register: _k8s_argocd_manifest
+  when:
+    - inventory_hostname == k8s_primary_master_name
+  tags: [never, apply, delete]
+
+
+- name: Template ArgoCD manifest
+  template:
+    src: "{{ k8s_argocd_install_manifest }}"
+    dest: "{{ _k8s_argocd_manifest.path }}"
+  when:
+    - inventory_hostname == k8s_primary_master_name
+  tags: [never, apply, delete]
+
+
+# ---
+
+
+- name: Create ArgoCD namespace
+  shell: >
+    kubectl create namespace "{{ k8s_argocd_namespace }}"
+  ignore_errors: yes
+  when:
+    - inventory_hostname == k8s_primary_master_name
+  tags: [never, apply]
+
+
+- name: Apply ArgoCD
+  shell: >
+    kubectl apply -n "{{ k8s_argocd_namespace }}" -f "{{ _k8s_argocd_manifest.path }}"
+  when:
+    - inventory_hostname == k8s_primary_master_name
+  tags: [never, apply]
+
+
+- name: Extract auto-generated password
+  shell: >
+    kubectl get pods -n {{ k8s_argocd_namespace }} -l app.kubernetes.io/name=argocd-server -o name | cut -d'/' -f 2
+  register: _k8s_argocd_password
+  when:
+    - inventory_hostname == k8s_primary_master_name
+  tags: [never, apply]
+
+
+- name: Display auto-generated password
+  debug:
+    msg: "ArgoCD default password: {{ _k8s_argocd_password.stdout }}"
+  when:
+    - inventory_hostname == k8s_primary_master_name
+  tags: [never, apply]
+
+
+- name: Generate password
+  set_fact:
+    _k8s_argocd_admin_password: "{{ k8s_argocd_admin_password | password_hash('bcrypt') }}"
+  ignore_errors: yes
+  when:
+    - inventory_hostname == k8s_primary_master_name
+    - k8s_argocd_admin_password | default('') | length > 0
+  tags: [never, apply]
+
+
+- name: Update password
+  shell: >
+    kubectl -n {{ k8s_argocd_namespace }} patch secret argocd-secret -p '{
+      "stringData": {
+        "admin.password": "{{ _k8s_argocd_admin_password }}",
+        "admin.passwordMtime": "'$(date +%FT%T%Z)'"
+      }
+    }'
+  when:
+    - inventory_hostname == k8s_primary_master_name
+    - _k8s_argocd_admin_password | default('') | length > 0
+  tags: [never, apply]
+
+
+- name: Apply custom manifest
+  k8s:
+    resource_definition: "{{ lookup('template', item + '.yml.j2') }}"
+    state: present
+  with_items: "{{ k8s_argocd_custom_manifests }}"
+  when:
+    - inventory_hostname == k8s_primary_master_name
+  tags: [never, apply]
+
+
+# ---
+
+
+- name: Delete custom manifest
+  k8s:
+    resource_definition: "{{ lookup('template', item + '.yml.j2') }}"
+    state: absent
+  with_items: "{{ k8s_argocd_custom_manifests }}"
+  when:
+    - inventory_hostname == k8s_primary_master_name
+  tags: [never, delete]
+
+
+- name: Delete ArgoCD
+  shell: >
+    kubectl delete -n "{{ k8s_argocd_namespace }}" -f "{{ _k8s_argocd_manifest.path }}"
+  when:
+    - inventory_hostname == k8s_primary_master_name
+  tags: [never, delete]
+
+
+- name: Delete ArgoCD namespace
+  shell: >
+    kubectl delete namespace "{{ k8s_argocd_namespace }}"
+  ignore_errors: yes
+  when:
+    - inventory_hostname == k8s_primary_master_name
+  tags: [never, delete]
+
+
+# ---
+
+
+- name: Remove temporary ArgoCD manifest
+  file:
+    path: "{{ _k8s_argocd_manifest.path }}"
+    state: absent
+  when:
+    - inventory_hostname == k8s_primary_master_name
+  tags: [never, apply, delete]

@@ -1,0 +1,27 @@
+# code: language=Ansible insertSpaces=true tabSize=2
+
+
+# General
+k8s_argocd_namespace: argocd
+k8s_argocd_version: "1.7"
+k8s_argocd_install_url: "kubectl apply -n argocd -f https://raw.githubusercontent.com/argoproj/argo-cd/release-{{ k8s_argocd_version }}/manifests/install.yaml"
+k8s_argocd_install_manifest: "install-{{ k8s_argocd_version }}.yml.j2"
+
+# Default admin account
+k8s_argocd_admin_password: ""
+
+# Add the option '--insecure' to ArgoCD server deployment.
+# Note that this option is also set when referencing 'istio-virtualservice.yml' in 'k8s_argocd_custom_manifests'.
+k8s_argocd_server_insecure: no
+
+# Custom manifests to apply / delete
+# Supported values (must be located in role's templates):
+# - istio-virtualservice
+k8s_argocd_custom_manifests: []
+
+# Istio Virtual Service
+# Note that referencing 'istio-virtualservice.yml' in 'k8s_argocd_custom_manifests' automatically adds the option '--insecure' to ArgoCD deployment.
+k8s_argocd_istio_vs_name: argocd-vs
+k8s_argocd_istio_vs_gateways: [ "istio-system/istio-gateway" ]
+k8s_argocd_istio_vs_hosts: [ "argocd" ]
+k8s_argocd_istio_vs_service: argocd-server

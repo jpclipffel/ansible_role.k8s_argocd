@@ -1,0 +1,25 @@
+apiVersion: networking.istio.io/v1beta1
+kind: VirtualService
+metadata:
+  name: {{ k8s_argocd_istio_vs_name }}
+  namespace: {{ k8s_argocd_namespace }}
+spec:
+  gateways: {{ k8s_argocd_istio_vs_gateways }}
+  hosts: {{ k8s_argocd_istio_vs_hosts }}
+  http:
+  - name: http2
+    route:
+    - destination:
+        host: {{ k8s_argocd_istio_vs_service }}
+        port:
+          number: 80
+  tls:
+  - match:
+    - port: 443
+      sniHosts: {{ k8s_argocd_istio_vs_hosts }}
+    name: https
+    route:
+    - destination:
+        host: {{ k8s_argocd_istio_vs_service }}
+        port:
+          number: 80
